@@ -1,0 +1,20 @@
+logsmis-rta-46/
+├── appsscript.json                  # Manifest สิทธิ์ขั้นต่ำ (Least Privilege) และตั้งค่า Runtime V8
+├── .clasp.json.example              # แม่แบบเชื่อมต่อ Google Apps Script Project
+├── .env.example                     # แม่แบบตัวแปรแวดล้อมสำหรับ CI/CD (ห้ามใส่ค่าจริงลง Git)
+├── package.json                     # Dependencies สำหรับ Local DevEx, Lint และ Vitest
+├── .github/
+│   └── workflows/
+│       └── ci-cd.yml                # Pipeline ตรวจสอบโค้ด ทดสอบ และ Deploy แยก Environment
+├── src/
+│   ├── Config.gs                    # ค่าคงที่ Schema กฎสมดุลบัญชี ข้อมูลหน่วย 18 หน่วย และ สป. 34 รายการ
+│   ├── Security.gs                  # การเข้ารหัส PIN (SHA-256 + Salt), Session, RBAC/ABAC และ Sanitization
+│   ├── Repository.gs                # ชั้นจัดการข้อมูล Google Sheets แบบ Batch I/O และ CacheService
+│   ├── TransactionEngine.gs         # กลไกเบิก-จ่าย รับ สป. ส่งซ่อม จำหน่าย และตรวจนับ พร้อม ScriptLock
+│   ├── ReportAndNotification.gs     # ตารางกระทบยอด 19 หน่วย สร้าง PDF แบบพิมพ์ ทบ. และแจ้งเตือน Telegram/LINE
+│   ├── MigrationAndSetup.gs         # สคริปต์ติดตั้งและอัปเกรดฐานข้อมูลเดิม (setupSystem) และ Backup อัตโนมัติ
+│   ├── Main.gs                      # จุดรับคำสั่ง Web App (doGet), Health Check และ API Gateway
+│   └── Index.html                   # หน้าจอ Enterprise SPA ภาษาไทยครบทุกฟังก์ชันการทำงาน
+├── tests/
+│   └── TransactionEngine.test.js    # Unit Tests ตรวจสอบสมดุลบัญชี สิทธิ์สายงาน และการเข้ารหัส PIN
+└── README.md                        # คู่มือติดตั้ง อัปเกรดฐานข้อมูล ใช้งาน ทดสอบ และกู้คืนระบบ

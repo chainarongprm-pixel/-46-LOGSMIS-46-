@@ -1,0 +1,17 @@
+{
+  "name": "logsmis-rta-46",
+  "version": "4.0.0",
+  "description": "ระบบสารสนเทศการส่งกำลังบำรุง บัญชีคุมสิ่งอุปกรณ์พลาธิการ กรมทหารพรานที่ 46",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clasp:push": "clasp push",
+    "clasp:version": "clasp version",
+    "clasp:status": "clasp status"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.4.2",
+    "vitest": "^2.1.8"
+  }
+}

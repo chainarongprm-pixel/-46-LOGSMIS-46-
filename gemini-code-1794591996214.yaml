@@ -1,0 +1,38 @@
+name: LOGSMIS CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm test
+
+  deploy-staging:
+    needs: test-and-validate
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: Restore clasp credentials from GitHub Secrets
+        run: |
+          echo "$CLASPRC_JSON" > ~/.clasprc.json
+          echo "$CLASP_JSON_STAGING" > .clasp.json
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          CLASP_JSON_STAGING: ${{ secrets.CLASP_JSON_STAGING }}
+      - run: npx clasp push --force
