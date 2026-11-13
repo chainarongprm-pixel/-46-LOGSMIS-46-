@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LOGSMIS | กรมทหารพรานที่ 46</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Sarabun', sans-serif; background-color: #f8fafc; color: #0f172a; }
+    .tab-active { border-bottom: 3px solid #166534; color: #166534; font-weight: 700; }
+    .badge-ok { background: #dcfce7; color: #166534; }
+    .badge-warn { background: #fef3c7; color: #92400e; }
+    .badge-err { background: #fee2e2; color: #991b1b; }
+    .badge-info { background: #e0f2fe; color: #075985; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Toast Notification -->
+  <div id="toastBox" class="fixed top-4 right-4 z-50 hidden max-w-md rounded-lg shadow-lg px-4 py-3 text-sm font-medium border"></div>
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 hidden items-center justify-center">
+    <div class="bg-white rounded-xl px-6 py-4 shadow-xl flex items-center gap-3">
+      <div class="w-5 h-5 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin"></div>
+      <span id="loadingText" class="text-sm font-semibold text-slate-700">กำลังประมวลผลข้อมูล...</span>
+    </div>
+  </div>
+
+  <!-- LOGIN SCREEN -->
+  <section id="loginView" class="flex-1 flex items-center justify-center p-4">
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm max-w-md w-full p-6 sm:p-8">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-12 h-12 rounded-xl bg-emerald-800 text-white flex items-center justify-center font-bold text-lg">
+          ทพ.๔๖
+        </div>
+        <div>
+          <h1 class="text-xl font-bold text-slate-900">LOGSMIS กรมทหารพรานที่ ๔๖</h1>
+          <p class="text-xs text-slate-500">ระบบบัญชีคุมสิ่งอุปกรณ์พลาธิการและส่งกำลังบำรุง</p>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">เลือกนายทหาร / เจ้าหน้าที่ผู้ปฏิบัติ</label>
+          <select id="loginUserSelect" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-700">
+            <option value="">กำลังโหลดรายชื่อกำลังพล...</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">รหัสผ่าน PIN 6 หลัก</label>
+          <input id="loginPinInput" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-center text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-700"
+            onkeydown="if(event.key==='Enter') handleLogin()" />
+        </div>
+
+        <button onclick="handleLogin()"
+          class="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-semibold py-2.5 rounded-lg transition cursor-pointer">
+          เข้าสู่ระบบควบคุมสิ่งอุปกรณ์
+        </button>
+      </div>
+
+      <div class="mt-6 pt-4 border-t border-slate-100 text-xs text-slate-500 leading-relaxed">
+        <strong>อ้างอิงสิทธิ์การลงนามอิเล็กทรอนิกส์:</strong><br>
+        <?= orderRef ?>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAIN APPLICATION VIEW -->
+  <div id="appView" class="hidden flex-1 flex flex-col">
+    <!-- Top Header -->
+    <header class="bg-slate-900 text-white px-4 sm:px-6 py-3 shadow-sm">
+      <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="px-2.5 py-1 rounded bg-emerald-700 text-xs font-bold tracking-wide">LOGSMIS v4.0</span>
+          <div>
+            <div class="font-bold text-base">บัญชีคุมสิ่งอุปกรณ์พลาธิการ — กรมทหารพรานที่ ๔๖</div>
+            <div id="headerOrderRef" class="text-xs text-slate-300"></div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="text-right">
+            <div id="currentUserName" class="text-sm font-semibold"></div>
+            <div id="currentUserRole" class="text-xs text-emerald-300"></div>
+          </div>
+          <button onclick="openChangePinModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs border border-slate-700 cursor-pointer">
+            เปลี่ยน PIN
+          </button>
+          <button onclick="handleLogout()" class="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 text-xs font-semibold cursor-pointer">
+            ออกจากระบบ
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="bg-white border-b border-slate-200 px-4 sm:px-6 overflow-x-auto">
+      <div class="max-w-7xl mx-auto flex gap-6 text-sm whitespace-nowrap">
+        <button onclick="switchTab('items')" id="tabBtn-items" class="py-3 tab-active cursor-pointer">1. บัญชีคุม สป. (34 รายการ)</button>
+        <button onclick="switchTab('requisitions')" id="tabBtn-requisitions" class="py-3 text-slate-600 hover:text-slate-900 cursor-pointer">2. ใบเบิก/ส่งคืน (ทบ.400-006)</button>
+        <button onclick="switchTab('repairs')" id="tabBtn-repairs" class="py-3 text-slate-600 hover:text-slate-900 cursor-pointer">3. ส่งซ่อม & จำหน่าย (ทบ.400-065)</button>
+        <button onclick="switchTab('matrix')" id="tabBtn-matrix" class="py-3 text-slate-600 hover:text-slate-900 cursor-pointer">4. กระทบยอด 19 หน่วย</button>
+        <button onclick="switchTab('audit')" id="tabBtn-audit" class="py-3 text-slate-600 hover:text-slate-900 cursor-pointer">5. ตรวจนับ 6 เดือน & บัญชีธุรกรรม</button>
+        <button onclick="switchTab('settings')" id="tabBtn-settings" class="py-3 text-slate-600 hover:text-slate-900 cursor-pointer">6. ตั้งค่าแจ้งเตือน</button>
+      </div>
+    </nav>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl mx-auto w-full p-4 sm:p-6 flex-1 space-y-6">
+
+      <!-- KPI Summary Cards -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3" id="kpiCards"></div>
+
+      <!-- TAB 1: ITEMS LEDGER -->
+      <section id="tab-items" class="space-y-4">
+        <div class="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2 flex-1">
+            <input id="itemSearchInput" type="text" placeholder="ค้นหาชื่อสิ่งอุปกรณ์, รหัส ITM, หมายเลข NSN..."
+              oninput="renderItemsTable()"
+              class="rounded-lg border border-slate-300 px-3 py-2 text-sm w-full sm:w-72" />
+            <select id="itemCategoryFilter" onchange="renderItemsTable()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="">ทุกหมวดสิ่งอุปกรณ์</option>
+              <option value="1. หมวดเครื่องสนาม">1. หมวดเครื่องสนาม</option>
+              <option value="2. หมวด อส. / อาคารสถานที่">2. หมวด อส. / อาคารสถานที่</option>
+              <option value="3. หมวด อจย.">3. หมวด อจย.</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="openReceiveSupplyModal()" class="bg-emerald-800 hover:bg-emerald-900 text-white text-sm font-semibold px-4 py-2 rounded-lg cursor-pointer">
+              + บันทึกรับ สป. เข้าคลัง
+            </button>
+            <button onclick="generatePdf('400-016', 'ALL')" class="bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold px-4 py-2 rounded-lg cursor-pointer">
+              พิมพ์ ทบ.400-016 (PDF)
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
+          <table class="w-full text-sm text-left">
+            <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+              <tr>
+                <th class="px-3 py-3">รหัส</th>
+                <th class="px-3 py-3">รายการสิ่งอุปกรณ์</th>
+                <th class="px-3 py-3">NSN</th>
+                <th class="px-3 py-3 text-right">อัตราอนุมัติ</th>
+                <th class="px-3 py-3 text-right">รับทั้งสิ้น</th>
+                <th class="px-3 py-3 text-right">จ่ายหน่วย</th>
+                <th class="px-3 py-3 text-right">คงคลัง</th>
+                <th class="px-3 py-3 text-right">ใช้การได้</th>
+                <th class="px-3 py-3 text-right">ซ่อม</th>
+                <th class="px-3 py-3 text-right">รอจำหน่าย</th>
+                <th class="px-3 py-3">สถานะบัญชี</th>
+              </tr>
+            </thead>
+            <tbody id="itemsTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 2: REQUISITIONS -->
+      <section id="tab-requisitions" class="hidden space-y-4">
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <h2 class="font-bold text-base text-slate-900 mb-3">สร้างใบเบิก / ใบส่งคืนสิ่งอุปกรณ์ (แบบพิมพ์ ทบ.400-006)</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">ประเภทธุรกรรม</label>
+              <select id="reqDirection" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                <option value="ISSUE">เบิกจ่ายจากคลังหน่วย (ISSUE)</option>
+                <option value="HQ_REQUEST">เบิกเพิ่มเติมจากหน่วยเหนือ (HQ_REQUEST)</option>
+                <option value="RETURN">ส่งคืนสิ่งอุปกรณ์เข้าคลัง (RETURN)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">หน่วยเบิก / หน่วยส่งคืน (18 หน่วย)</label>
+              <select id="reqDeptSelect" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">รายการสิ่งอุปกรณ์</label>
+              <select id="reqItemSelect" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">จำนวน</label>
+              <input id="reqQtyInput" type="number" min="1" value="1" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold text-slate-600 mb-1">เหตุผลความจำเป็นในการเบิก/ส่งคืน</label>
+              <input id="reqReasonInput" type="text" placeholder="เช่น เบิกทดแทนรายการชำรุดหรือเพิ่มเติมให้ครบอัตรา" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">หมายเลขเครื่อง / LOT (ถ้ามี)</label>
+              <input id="reqSerialInput" type="text" placeholder="-" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div class="flex items-end">
+              <button onclick="submitCreateRequisition()" class="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-semibold py-2 rounded-lg text-sm cursor-pointer">
+                บันทึกสร้างใบเบิก ทบ.400-006
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+          <table class="w-full text-sm text-left">
+            <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+              <tr>
+                <th class="px-3 py-3">เลขที่เอกสาร</th>
+                <th class="px-3 py-3">ประเภท</th>
+                <th class="px-3 py-3">หน่วย</th>
+                <th class="px-3 py-3">รายการ สป.</th>
+                <th class="px-3 py-3 text-right">จำนวน</th>
+                <th class="px-3 py-3">ผู้ดำเนินการ / ผู้ตรวจ</th>
+                <th class="px-3 py-3">สถานะ</th>
+                <th class="px-3 py-3">การจัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="reqTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 3: REPAIRS & DISPOSALS -->
+      <section id="tab-repairs" class="hidden space-y-6">
+        <!-- Repairs -->
+        <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
+          <h2 class="font-bold text-base text-slate-900">ส่งซ่อมบำรุงสิ่งอุปกรณ์ (DB_REPAIRS)</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <select id="repDeptSelect" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"></select>
+            <select id="repItemSelect" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"></select>
+            <input id="repQtyInput" type="number" min="1" value="1" placeholder="จำนวนส่งซ่อม" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input id="repSymptomInput" type="text" placeholder="อาการชำรุด" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <button onclick="submitSendRepair()" class="bg-amber-700 hover:bg-amber-800 text-white font-semibold py-2 rounded-lg text-sm cursor-pointer">
+              + บันทึกส่งซ่อมบำรุง
+            </button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold">
+                <tr>
+                  <th class="px-3 py-2">เลขที่ใบซ่อม</th>
+                  <th class="px-3 py-2">หน่วย</th>
+                  <th class="px-3 py-2">รายการ</th>
+                  <th class="px-3 py-2 text-right">ส่งซ่อม / รับคืน</th>
+                  <th class="px-3 py-2">อาการชำรุด</th>
+                  <th class="px-3 py-2">สถานะ</th>
+                  <th class="px-3 py-2">รับคืนจากการซ่อม</th>
+                </tr>
+              </thead>
+              <tbody id="repairsTableBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Disposals -->
+        <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
+          <h2 class="font-bold text-base text-slate-900">เสนอจำหน่ายสิ่งอุปกรณ์ (แบบพิมพ์ ทบ.400-065)</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <select id="dspDeptSelect" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"></select>
+            <select id="dspItemSelect" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"></select>
+            <input id="dspQtyInput" type="number" min="1" value="1" placeholder="จำนวนจำหน่าย" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input id="dspReasonInput" type="text" placeholder="เหตุผลการจำหน่าย (เช่น ชำรุดเสื่อมสภาพ)" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <input id="dspCommitteeInput" type="text" placeholder="อ้างอิงคำสั่งตั้ง กก.สอบสวน" class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <button onclick="submitRequestDisposal()" class="bg-rose-800 hover:bg-rose-900 text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">
+              + เสนอเรื่องจำหน่าย ทบ.400-065
+            </button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold">
+                <tr>
+                  <th class="px-3 py-2">เลขที่จำหน่าย</th>
+                  <th class="px-3 py-2">หน่วย</th>
+                  <th class="px-3 py-2">รายการ</th>
+                  <th class="px-3 py-2 text-right">จำนวน</th>
+                  <th class="px-3 py-2">เหตุผล / คณะกรรมการ</th>
+                  <th class="px-3 py-2">สถานะ</th>
+                  <th class="px-3 py-2">การดำเนินการ</th>
+                </tr>
+              </thead>
+              <tbody id="disposalsTableBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: 19-UNIT MATRIX -->
+      <section id="tab-matrix" class="hidden space-y-4">
+        <div class="bg-white border border-slate-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="font-bold text-base text-slate-900">ตารางกระทบยอดสิ่งอุปกรณ์ 19 หน่วย (ยอดรวมทั้งกรม + 18 หน่วยขึ้นตรง)</h2>
+            <p class="text-xs text-slate-500">คำนวณแบบ Real-time จากฐานข้อมูลกลาง ไม่ต้องแยก 19 ชีต ลดความเสี่ยงข้อมูลไม่ตรงกัน</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="loadReconciliationMatrix()" class="bg-emerald-800 hover:bg-emerald-900 text-white text-sm font-semibold px-4 py-2 rounded-lg cursor-pointer">
+              โหลดข้อมูลกระทบยอดล่าสุด
+            </button>
+            <button onclick="exportMatrixSheet()" class="bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold px-4 py-2 rounded-lg cursor-pointer">
+              ส่งออกชีตสรุป 19 หน่วย
+            </button>
+          </div>
+        </div>
+
+        <div id="matrixContainer" class="bg-white border border-slate-200 rounded-xl overflow-x-auto p-4 text-sm text-slate-500">
+          กดปุ่ม "โหลดข้อมูลกระทบยอดล่าสุด" เพื่อแสดงตารางเปรียบเทียบยอดทั้ง 18 หน่วย
+        </div>
+      </section>
+
+      <!-- TAB 5: 6-MONTH INVENTORY AUDIT & LEDGER -->
+      <section id="tab-audit" class="hidden space-y-6">
+        <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 class="font-bold text-base text-slate-900">บันทึกการตรวจสอบยอดสิ่งอุปกรณ์ประจำ 6 เดือน / เปลี่ยนตัวผู้รับผิดชอบ (ทบ.400-011)</h2>
+              <p class="text-xs text-slate-500">เปรียบเทียบยอดตรวจนับจริงกับยอดตามบัญชีคุมของหน่วย</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <select id="auditUnitSelect" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"></select>
+              <button onclick="submitSixMonthAudit()" class="bg-emerald-800 hover:bg-emerald-900 text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">
+                บันทึกผลตรวจนับประจำ 6 เดือน
+              </button>
+            </div>
+          </div>
+          <input id="auditNoteInput" type="text" placeholder="หมายเหตุคณะกรรมการตรวจสอบพัสดุประจำงวด..." class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <h3 class="font-bold text-base text-slate-900 mb-3">ประวัติการเคลื่อนไหวบัญชีสิ่งอุปกรณ์ (DB_TX_LEDGER ล่าสุด 50 รายการ)</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-700 font-semibold">
+                <tr>
+                  <th class="px-3 py-2">เวลา</th>
+                  <th class="px-3 py-2">ประเภท</th>
+                  <th class="px-3 py-2">เลขที่อ้างอิง</th>
+                  <th class="px-3 py-2">หน่วย</th>
+                  <th class="px-3 py-2">รายการ</th>
+                  <th class="px-3 py-2 text-right">เปลี่ยนแปลง</th>
+                  <th class="px-3 py-2 text-right">คลัง (ก่อน→หลัง)</th>
+                  <th class="px-3 py-2">ผู้ดำเนินการ</th>
+                </tr>
+              </thead>
+              <tbody id="txLedgerBody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 6: SETTINGS & NOTIFICATION TOKENS -->
+      <section id="tab-settings" class="hidden space-y-4">
+        <div class="bg-white border border-slate-200 rounded-xl p-5 max-w-2xl space-y-4">
+          <h2 class="font-bold text-base text-slate-900">ตั้งค่าการแจ้งเตือน Real-time (Telegram Bot / LINE Messaging API)</h2>
+          <p class="text-xs text-slate-500">Token ทั้งหมดจะถูกเข้ารหัสเก็บใน Script Properties โดยไม่แสดงค่าใน Google Sheets (LINE Notify ยุติให้บริการแล้ว แนะนำใช้ Telegram หรือ LINE Messaging API)</p>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Telegram Bot Token</label>
+              <input id="setTgToken" type="password" placeholder="ระบุ Token ใหม่หากต้องการอัปเดต" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Telegram Chat ID</label>
+              <input id="setTgChatId" type="text" placeholder="เช่น -1001234567890" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">LINE Channel Access Token (Messaging API)</label>
+              <input id="setLineToken" type="password" placeholder="ระบุ Channel Access Token" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">LINE Group / User ID ปลายทาง</label>
+              <input id="setLineTarget" type="text" placeholder="เช่น Cxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            </div>
+            <button onclick="saveNotificationSettings()" class="bg-slate-900 hover:bg-slate-800 text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer">
+              บันทึกการตั้งค่าความปลอดภัย
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- MODAL: RECEIVE SUPPLY -->
+  <div id="receiveModal" class="fixed inset-0 bg-slate-900/50 z-40 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full p-6 space-y-4">
+      <h3 class="font-bold text-lg text-slate-900">บันทึกรับสิ่งอุปกรณ์เข้าคลังหน่วย</h3>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">รายการสิ่งอุปกรณ์</label>
+          <select id="rcvItemSelect" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">จำนวนที่ตรวจรับ</label>
+          <input id="rcvQtyInput" type="number" min="1" value="1" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">เลขที่ใบส่งของ / หลักฐานการรับ</label>
+          <input id="rcvVoucherInput" type="text" placeholder="เช่น ใบส่งของ พธ.ทบ. ที่ .../2569" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">คำสั่งอนุมัติรับเกินอัตรา (กรณีรับรวมเกินอัตรา)</label>
+          <input id="rcvSpecialOrderInput" type="text" placeholder="ระบุเลขที่คำสั่งอนุมัติ (ถ้ามี)" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal('receiveModal')" class="px-4 py-2 rounded-lg border border-slate-300 text-sm cursor-pointer">ยกเลิก</button>
+        <button onclick="submitReceiveSupply()" class="px-4 py-2 rounded-lg bg-emerald-800 text-white text-sm font-semibold cursor-pointer">ยืนยันตรวจรับเข้าคลัง</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CHANGE PIN -->
+  <div id="changePinModal" class="fixed inset-0 bg-slate-900/50 z-40 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-sm w-full p-6 space-y-4">
+      <h3 class="font-bold text-lg text-slate-900">เปลี่ยนรหัสผ่าน PIN 6 หลัก</h3>
+      <div class="space-y-3">
+        <input id="oldPinInput" type="password" maxlength="6" placeholder="รหัส PIN เดิม (6 หลัก)" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <input id="newPinInput" type="password" maxlength="6" placeholder="รหัส PIN ใหม่ (6 หลัก)" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      </div>
+      <div class="flex justify-end gap-2">
+        <button onclick="closeModal('changePinModal')" class="px-4 py-2 rounded-lg border border-slate-300 text-sm cursor-pointer">ปิด</button>
+        <button onclick="submitChangePin()" class="px-4 py-2 rounded-lg bg-emerald-800 text-white text-sm font-semibold cursor-pointer">บันทึกรหัสใหม่</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STATE = {
+      sessionToken: '',
+      user: null,
+      units: [],
+      items: [],
+      requisitions: [],
+      repairs: [],
+      disposals: [],
+      txLedger: []
+    };
+
+    function callApi(action, payload, idempotencyKey) {
+      return new Promise((resolve, reject) => {
+        const envelope = {
+          requestId: 'WEB-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+          idempotencyKey: idempotencyKey || '',
+          action: action,
+          sessionToken: STATE.sessionToken,
+          payload: payload || {}
+        };
+        google.script.run
+          .withSuccessHandler((res) => {
+            if (res && res.ok) resolve(res.data);
+            else reject(new Error((res && res.error && res.error.message) || 'เกิดข้อผิดพลาดในการเชื่อมต่อ'));
+          })
+          .withFailureHandler((err) => reject(new Error(err.message || 'Server Error')))
+          .apiDispatch(envelope);
+      });
+    }
+
+    function setLoading(show, text) {
+      const el = document.getElementById('loadingOverlay');
+      document.getElementById('loadingText').textContent = text || 'กำลังประมวลผล...';
+      el.style.display = show ? 'flex' : 'none';
+    }
+
+    function showToast(msg, isError) {
+      const box = document.getElementById('toastBox');
+      box.textContent = msg;
+      box.className = `fixed top-4 right-4 z-50 max-w-md rounded-lg shadow-lg px-4 py-3 text-sm font-medium border ${
+        isError ? 'bg-rose-50 border-rose-300 text-rose-900' : 'bg-emerald-50 border-emerald-300 text-emerald-900'
+      }`;
+      box.classList.remove('hidden');
+      setTimeout(() => box.classList.add('hidden'), 4500);
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const users = await callApi('auth.directory', {});
+        const sel = document.getElementById('loginUserSelect');
+        sel.innerHTML = '<option value="">-- เลือกนายทหาร / เจ้าหน้าที่ --</option>' +
+          users.map(u => `<option value="${u.id}">${u.rank_name} — ${u.position}</option>`).join('');
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    });
+
+    async function handleLogin() {
+      const userId = document.getElementById('loginUserSelect').value;
+      const pin = document.getElementById('loginPinInput').value;
+      if (!userId || !pin) return showToast('กรุณาเลือกผู้ใช้งานและกรอกรหัส PIN 6 หลัก', true);
+
+      setLoading(true, 'กำลังตรวจสอบสิทธิ์การเข้าใช้งาน...');
+      try {
+        const auth = await callApi('auth.login', { user_id: userId, pin: pin });
+        STATE.sessionToken = auth.sessionToken;
+        STATE.user = auth.user;
+        document.getElementById('loginPinInput').value = '';
+        await refreshAllData();
+        document.getElementById('loginView').classList.add('hidden');
+        document.getElementById('appView').classList.remove('hidden');
+        if (auth.mustChangePin) {
+          showToast('กรุณาเปลี่ยนรหัสผ่าน PIN เริ่มต้นเพื่อความปลอดภัย', true);
+          openChangePinModal();
+        } else {
+          showToast(`ยินดีต้อนรับ ${auth.user.rankName}`);
+        }
+      } catch (e) {
+        showToast(e.message, true);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function handleLogout() {
+      STATE.sessionToken = '';
+      STATE.user = null;
+      document.getElementById('appView').classList.add('hidden');
+      document.getElementById('loginView').classList.remove('hidden');
+    }
+
+    async function refreshAllData() {
+      const data = await callApi('dashboard.bootstrap', {});
+      STATE.user = data.currentUser;
+      STATE.units = data.units;
+      STATE.items = data.items;
+      STATE.requisitions = data.requisitions;
+      STATE.repairs = data.repairs;
+      STATE.disposals = data.disposals;
+      STATE.txLedger = data.txLedger;
+
+      document.getElementById('headerOrderRef').textContent = data.orderRef;
+      document.getElementById('currentUserName').textContent = data.currentUser.rank_name;
+      document.getElementById('currentUserRole').textContent = `${data.currentUser.role} | ${data.currentUser.supply_line}`;
+
+      populateSelectors();
+      renderKpis();
+      renderItemsTable();
+      renderRequisitionsTable();
+      renderRepairsTable();
+      renderDisposalsTable();
+      renderTxLedger();
+    }
+
+    function populateSelectors() {
+      const unitOpts = STATE.units.map(u => `<option value="${u.id}">${u.unit_name}</option>`).join('');
+      const itemOpts = STATE.items.map(i => `<option value="${i.id}">${i.id} - ${i.item_name} (คงคลัง: ${i.depot_reserve_qty})</option>`).join('');
+
+      ['reqDeptSelect', 'repDeptSelect', 'dspDeptSelect', 'auditUnitSelect'].forEach(id => {
+        document.getElementById(id).innerHTML = unitOpts;
+      });
+      ['reqItemSelect', 'repItemSelect', 'dspItemSelect', 'rcvItemSelect'].forEach(id => {
+        document.getElementById(id).innerHTML = itemOpts;
+      });
+    }
+
+    function renderKpis() {
+      const totRecv = STATE.items.reduce((s, i) => s + Number(i.received_qty || 0), 0);
+      const totIss = STATE.items.reduce((s, i) => s + Number(i.issued_qty || 0), 0);
+      const totDep = STATE.items.reduce((s, i) => s + Number(i.depot_reserve_qty || 0), 0);
+      const totServ = STATE.items.reduce((s, i) => s + Number(i.serviceable_qty || 0), 0);
+      const totRep = STATE.items.reduce((s, i) => s + Number(i.in_repair_qty || 0), 0);
+      const totDisp = STATE.items.reduce((s, i) => s + Number(i.pending_disposal_qty || 0), 0);
+
+      const cards = [
+        { label: 'รับทั้งสิ้น (หน่วยนับรวม)', val: totRecv.toLocaleString(), color: 'text-slate-900' },
+        { label: 'จ่ายประจำ 18 หน่วย', val: totIss.toLocaleString(), color: 'text-emerald-800' },
+        { label: 'คงคลัง พธ. กรม', val: totDep.toLocaleString(), color: 'text-sky-800' },
+        { label: 'ใช้การได้ทั้งหมด', val: totServ.toLocaleString(), color: 'text-emerald-700' },
+        { label: 'อยู่ระหว่างส่งซ่อม', val: totRep.toLocaleString(), color: 'text-amber-700' },
+        { label: 'รออนุมัติจำหน่าย', val: totDisp.toLocaleString(), color: 'text-rose-700' }
+      ];
+
+      document.getElementById('kpiCards').innerHTML = cards.map(c => `
+        <div class="bg-white border border-slate-200 rounded-xl p-3.5">
+          <div class="text-xs text-slate-500">${c.label}</div>
+          <div class="text-xl font-bold mt-1 ${c.color}">${c.val}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderItemsTable() {
+      const q = document.getElementById('itemSearchInput').value.toLowerCase();
+      const cat = document.getElementById('itemCategoryFilter').value;
+
+      const filtered = STATE.items.filter(it => {
+        const matchCat = !cat || it.category === cat;
+        const matchQ = !q || `${it.id} ${it.item_name} ${it.nsn}`.toLowerCase().includes(q);
+        return matchCat && matchQ;
+      });
+
+      document.getElementById('itemsTableBody').innerHTML = filtered.map(it => {
+        const overAuth = Number(it.received_qty) > Number(it.authorized_qty);
+        return `
+          <tr class="hover:bg-slate-50">
+            <td class="px-3 py-2.5 font-mono text-xs font-semibold">${it.id}</td>
+            <td class="px-3 py-2.5 font-medium">${it.item_name}<div class="text-xs text-slate-400">${it.category}</div></td>
+            <td class="px-3 py-2.5 text-xs font-mono text-slate-600">${it.nsn}</td>
+            <td class="px-3 py-2.5 text-right">${Number(it.authorized_qty).toLocaleString()}</td>
+            <td class="px-3 py-2.5 text-right font-semibold">${Number(it.received_qty).toLocaleString()}</td>
+            <td class="px-3 py-2.5 text-right text-emerald-800">${Number(it.issued_qty).toLocaleString()}</td>
+            <td class="px-3 py-2.5 text-right text-sky-800 font-semibold">${Number(it.depot_reserve_qty).toLocaleString()}</td>
+            <td class="px-3 py-2.5 text-right">${Number(it.serviceable_qty).toLocaleString()}</td>
+            <td class="px-3 py-2.5 text-right text-amber-700">${Number(it.in_repair_qty).toLocaleString()}</td>
+            <td class="px-3 py-2.5 text-right text-rose-700">${Number(it.pending_disposal_qty).toLocaleString()}</td>
+            <td class="px-3 py-2.5">
+              ${overAuth
+                ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold badge-info">รับเกินอัตรา</span>'
+                : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold badge-ok">สมดุลปกติ</span>'}
+            </td>
+          </tr>`;
+      }).join('');
+    }
+
+    function renderRequisitionsTable() {
+      const role = STATE.user.role;
+      document.getElementById('reqTableBody').innerHTML = STATE.requisitions.map(r => {
+        let actions = `<button onclick="generatePdf('400-006', '${r.id}')" class="text-xs px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 font-medium cursor-pointer">PDF</button>`;
+
+        if (r.status === 'PENDING_INSPECTION' && role === 'INSPECTOR') {
+          actions += ` <button onclick="handleInspect('${r.id}', ${r.rev}, 'INSPECTED')" class="text-xs px-2.5 py-1 rounded bg-sky-700 text-white font-semibold cursor-pointer">ผ่านการตรวจ</button>`;
+        }
+        if (r.status === 'PENDING_APPROVAL' && role === 'APPROVER') {
+          actions += ` <button onclick="handleApprove('${r.id}', ${r.rev}, 'APPROVED')" class="text-xs px-2.5 py-1 rounded bg-emerald-700 text-white font-semibold cursor-pointer">อนุมัติ</button>`;
+          actions += ` <button onclick="handleApprove('${r.id}', ${r.rev}, 'REJECTED')" class="text-xs px-2.5 py-1 rounded bg-rose-700 text-white font-semibold cursor-pointer">ไม่อนุมัติ</button>`;
+        }
+
+        return `
+          <tr class="hover:bg-slate-50">
+            <td class="px-3 py-2.5 font-mono text-xs font-semibold">${r.doc_no}</td>
+            <td class="px-3 py-2.5 text-xs">${r.tx_direction}</td>
+            <td class="px-3 py-2.5 text-xs">${r.dept_name}</td>
+            <td class="px-3 py-2.5 font-medium">${r.item_name}</td>
+            <td class="px-3 py-2.5 text-right font-semibold">${r.qty_requested}</td>
+            <td class="px-3 py-2.5 text-xs">สร้าง: ${r.operator_name}<br>ตรวจ: ${r.inspector_name || '-'}</td>
+            <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${r.status === 'APPROVED' ? 'badge-ok' : (r.status === 'REJECTED' ? 'badge-err' : 'badge-warn')}">${r.status}</span></td>
+            <td class="px-3 py-2.5 space-x-1 whitespace-nowrap">${actions}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    function renderRepairsTable() {
+      document.getElementById('repairsTableBody').innerHTML = STATE.repairs.map(r => {
+        const rem = Number(r.qty_sent) - Number(r.qty_returned || 0);
+        return `
+          <tr>
+            <td class="px-3 py-2 font-mono text-xs font-semibold">${r.repair_no}</td>
+            <td class="px-3 py-2 text-xs">${r.dept_name}</td>
+            <td class="px-3 py-2">${r.item_name}</td>
+            <td class="px-3 py-2 text-right">${r.qty_sent} / ${r.qty_returned || 0}</td>
+            <td class="px-3 py-2 text-xs">${r.defect_symptom}</td>
+            <td class="px-3 py-2"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${r.status === 'REPAIR_COMPLETED' ? 'badge-ok' : 'badge-warn'}">${r.status}</span></td>
+            <td class="px-3 py-2">
+              ${rem > 0 ? `<button onclick="handleReturnRepair('${r.id}', ${rem})" class="text-xs px-2.5 py-1 rounded bg-emerald-700 text-white cursor-pointer">รับคืนครบ (${rem})</button>` : '-'}
+            </td>
+          </tr>`;
+      }).join('');
+    }
+
+    function renderDisposalsTable() {
+      const role = STATE.user.role;
+      document.getElementById('disposalsTableBody').innerHTML = STATE.disposals.map(d => {
+        let act = `<button onclick="generatePdf('400-065', '${d.id}')" class="text-xs px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 cursor-pointer">PDF</button>`;
+        if (d.status === 'PENDING_BOARD' && role === 'APPROVER') {
+          act += ` <button onclick="handleApproveDisposal('${d.id}')" class="text-xs px-2.5 py-1 rounded bg-rose-800 text-white font-semibold cursor-pointer">อนุมัติตัดยอด</button>`;
+        }
+        return `
+          <tr>
+            <td class="px-3 py-2 font-mono text-xs font-semibold">${d.disposal_no}</td>
+            <td class="px-3 py-2 text-xs">${d.dept_name}</td>
+            <td class="px-3 py-2">${d.item_name}</td>
+            <td class="px-3 py-2 text-right font-semibold">${d.qty_disposal}</td>
+            <td class="px-3 py-2 text-xs">${d.disposal_reason}<br><span class="text-slate-400">${d.committee_ref}</span></td>
+            <td class="px-3 py-2"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${d.status === 'DISPOSED' ? 'badge-ok' : 'badge-warn'}">${d.status}</span></td>
+            <td class="px-3 py-2 whitespace-nowrap">${act}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    function renderTxLedger() {
+      document.getElementById('txLedgerBody').innerHTML = STATE.txLedger.map(t => `
+        <tr>
+          <td class="px-3 py-2 font-mono">${String(t.timestamp).replace('T', ' ').substring(0, 19)}</td>
+          <td class="px-3 py-2 font-semibold">${t.tx_type}</td>
+          <td class="px-3 py-2 font-mono">${t.ref_doc_no}</td>
+          <td class="px-3 py-2">${t.unit_name}</td>
+          <td class="px-3 py-2">${t.item_name}</td>
+          <td class="px-3 py-2 text-right font-bold">${t.delta_qty > 0 ? '+' + t.delta_qty : t.delta_qty}</td>
+          <td class="px-3 py-2 text-right">${t.before_depot_qty} → ${t.after_depot_qty}</td>
+          <td class="px-3 py-2">${t.actor_name}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function submitCreateRequisition() {
+      setLoading(true, 'กำลังสร้างใบเบิก ทบ.400-006...');
+      try {
+        await callApi('requisition.create', {
+          tx_direction: document.getElementById('reqDirection').value,
+          dept_id: document.getElementById('reqDeptSelect').value,
+          item_id: document.getElementById('reqItemSelect').value,
+          qty_requested: Number(document.getElementById('reqQtyInput').value),
+          reason: document.getElementById('reqReasonInput').value,
+          serial_number: document.getElementById('reqSerialInput').value
+        });
+        await refreshAllData();
+        showToast('บันทึกใบเบิก/ส่งคืนเรียบร้อยแล้ว');
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    async function handleInspect(reqId, rev, decision) {
+      setLoading(true, 'กำลังบันทึกผลการตรวจสอบ...');
+      try {
+        await callApi('requisition.inspect', { req_id: reqId, expected_rev: rev, decision: decision });
+        await refreshAllData();
+        showToast('บันทึกผลการตรวจสอบเรียบร้อย');
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    async function handleApprove(reqId, rev, decision) {
+      setLoading(true, 'กำลังประมวลผลคำสั่งอนุมัติและปรับยอดบัญชี...');
+      try {
+        await callApi('requisition.approve', {
+          req_id: reqId, expected_rev: rev, decision: decision
+        }, `approve-${reqId}-rev${rev}`);
+        await refreshAllData();
+        showToast(decision === 'APPROVED' ? 'อนุมัติและตัดยอดบัญชีเรียบร้อย' : 'บันทึกไม่อนุมัติแล้ว');
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    async function submitReceiveSupply() {
+      setLoading(true, 'กำลังบันทึกรับสิ่งอุปกรณ์เข้าคลัง...');
+      try {
+        await callApi('supply.receive', {
+          item_id: document.getElementById('rcvItemSelect').value,
+          qty_received: Number(document.getElementById('rcvQtyInput').value),
+          ref_voucher: document.getElementById('rcvVoucherInput').value,
+          special_order_ref: document.getElementById('rcvSpecialOrderInput').value
+        });
+        closeModal('receiveModal');
+        await refreshAllData();
+        showToast('ตรวจรับสิ่งอุปกรณ์เข้าคลังเรียบร้อยแล้ว');
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    async function submitSendRepair() {
+      setLoading(true, 'กำลังบันทึกส่งซ่อมบำรุง...');
+      try {
+        await callApi('repair.manage', {
+          mode: 'SEND_REPAIR',
+          dept_id: document.getElementById('repDeptSelect').value,
+          item_id: document.getElementById('repItemSelect').value,
+          qty_sent: Number(document.getElementById('repQtyInput').value),
+          defect_symptom: document.getElementById('repSymptomInput').value
+        });
+        await refreshAllData();
+        showToast('บันทึกส่งซ่อมบำรุงเรียบร้อย');
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    async function handleReturnRepair(repairId, qtyReturned) {
+      setLoading(true, 'กำลังบันทึกรับคืนจากการซ่อม...');
+      try {
+        await callApi('repair.manage', { mode: 'RETURN_REPAIR', repair_id: repairId, qty_returned: qtyReturned });
+        await refreshAllData();
+        showToast('รับคืนสิ่งอุปกรณ์จากการซ่อมเรียบร้อย');
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    async function submitRequestDisposal() {
+      setLoading(true, 'กำลังบันทึกเสนอจำหน่าย ทบ.400-065...');
+      try {
+        await callApi('disposal.manage', {
+          mode: 'REQUEST_DISPOSAL',
+          dept_id: document.getElementById('dspDeptSelect').value,
+          item_id: document.getElementById('dspItemSelect').value,
+          qty_disposal: Number(document.getElementById('dspQtyInput').value),
+          disposal_reason: document.getElementById('dspReasonInput').value,
+          committee_ref: document.getElementById('dspCommitteeInput').value
+        });
+        await refreshAllData();
+        showToast('สร้างใบเสนอจำหน่ายเรียบร้อย');
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    async function handleApproveDisposal(dspId) {
+      setLoading(true, 'กำลังอนุมัติตัดยอดจำหน่าย...');
+      try {
+        await callApi('disposal.manage', { mode: 'APPROVE_DISPOSAL', disposal_id: dspId });
+        await refreshAllData();
+        showToast('อนุมัติตัดยอดจำหน่ายเรียบร้อย');
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    async function loadReconciliationMatrix() {
+      setLoading(true, 'กำลังคำนวณตารางกระทบยอด 19 หน่วย...');
+      try {
+        const res = await callApi('report.matrix', {});
+        const unitCols = res.units.map(u => `<th class="px-2 py-2 text-right whitespace-nowrap">${u.legacy_sheet_name || u.unit_code}</th>`).join('');
+        const bodyRows = res.rows.map(r => {
+          const unitCells = res.units.map(u => `<td class="px-2 py-2 text-right">${r.unit_quantities[u.id] || 0}</td>`).join('');
+          return `
+            <tr class="hover:bg-slate-50">
+              <td class="px-2 py-2 font-mono text-xs">${r.item_id}</td>
+              <td class="px-2 py-2 font-medium whitespace-nowrap">${r.item_name}</td>
+              <td class="px-2 py-2 text-right font-bold">${r.issued_qty}</td>
+              <td class="px-2 py-2 text-right text-sky-800 font-bold">${r.depot_reserve_qty}</td>
+              ${unitCells}
+            </tr>`;
+        }).join('');
+
+        document.getElementById('matrixContainer').innerHTML = `
+          <table class="w-full text-xs text-left border-collapse">
+            <thead class="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
+              <tr>
+                <th class="px-2 py-2">รหัส</th>
+                <th class="px-2 py-2">รายการสิ่งอุปกรณ์</th>
+                <th class="px-2 py-2 text-right">จ่ายรวม</th>
+                <th class="px-2 py-2 text-right">คงคลัง</th>
+                ${unitCols}
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">${bodyRows}</tbody>
+          </table>`;
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    async function exportMatrixSheet() {
+      setLoading(true, 'กำลังส่งออกชีตสรุป 19 หน่วย...');
+      try {
+        const res = await callApi('report.exportSheet', {});
+        showToast(`ส่งออกชีต "${res.sheetName}" ลงใน Google Sheets เรียบร้อยแล้ว`);
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    async function submitSixMonthAudit() {
+      const unitId = document.getElementById('auditUnitSelect').value;
+      const note = document.getElementById('auditNoteInput').value;
+      setLoading(true, 'กำลังบันทึกผลการตรวจนับประจำ 6 เดือน...');
+      try {
+        const matrix = await callApi('report.matrix', {});
+        const itemsPayload = matrix.rows.map(r => ({
+          item_id: r.item_id,
+          physical_qty: r.unit_quantities[unitId] || 0
+        }));
+        const res = await callApi('audit.sixMonth', { unit_id: unitId, items: itemsPayload, audit_note: note });
+        showToast(`บันทึกการตรวจนับเรียบร้อย (ตรวจ ${res.checkedCount} รายการ, พบส่วนต่าง ${res.discrepancies.length} รายการ)`);
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    async function generatePdf(formCode, docId) {
+      setLoading(true, `กำลังสร้างแบบพิมพ์ ทบ.${formCode} (PDF)...`);
+      try {
+        const res = await callApi('report.pdf', { form_code: formCode, doc_id: docId });
+        window.open(res.fileUrl, '_blank');
+        showToast(`สร้างไฟล์ ${res.fileName} เรียบร้อยแล้ว`);
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    async function saveNotificationSettings() {
+      setLoading(true, 'กำลังบันทึกการตั้งค่า...');
+      try {
+        await callApi('admin.updateNotificationTokens', {
+          telegram_bot_token: document.getElementById('setTgToken').value,
+          telegram_chat_id: document.getElementById('setTgChatId').value,
+          line_channel_access_token: document.getElementById('setLineToken').value,
+          line_target_group_id: document.getElementById('setLineTarget').value
+        });
+        showToast('บันทึกการตั้งค่าลง Script Properties เรียบร้อยแล้ว');
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    async function submitChangePin() {
+      setLoading(true, 'กำลังอัปเดตรหัส PIN...');
+      try {
+        await callApi('auth.changePin', {
+          old_pin: document.getElementById('oldPinInput').value,
+          new_pin: document.getElementById('newPinInput').value
+        });
+        closeModal('changePinModal');
+        showToast('เปลี่ยนรหัสผ่าน PIN เรียบร้อยแล้ว');
+      } catch (e) { showToast(e.message, true); }
+      finally { setLoading(false); }
+    }
+
+    function switchTab(tabName) {
+      ['items', 'requisitions', 'repairs', 'matrix', 'audit', 'settings'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== tabName);
+        const btn = document.getElementById('tabBtn-' + t);
+        if (t === tabName) btn.className = 'py-3 tab-active cursor-pointer';
+        else btn.className = 'py-3 text-slate-600 hover:text-slate-900 cursor-pointer';
+      });
+    }
+
+    function openReceiveSupplyModal() { document.getElementById('receiveModal').style.display = 'flex'; }
+    function openChangePinModal() { document.getElementById('changePinModal').style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+  </script>
+</body>
+</html>
